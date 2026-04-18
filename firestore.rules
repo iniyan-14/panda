@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ======================================================
+    // PILLAR 3: Primitive Definition & Identity Helpers
+    // ======================================================
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // RBAC Helpers
+    // Note: get() is used for relational checks. It counts as a read.
+    function getRole() {
+      // Safely get role, defaulting to visitor if document doesn't exist or doesn't have the field
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'visitor');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole() == 'admin') ||
+        request.auth.token.email == 'iniyangdg@gmail.com'
+      );
+    }
+
+    function isPartner() {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole() == 'partner')
+      );
+    }
+
+    function isBirthdayReached() {
+      // May 10, 2026 00:00:00 GMT is 1778313600000
+      return request.time >= timestamp.value(1778313600000); 
+    }
+
+    // ======================================================
+    // PILLAR 1: The Master Gate (Default Deny)
+    // ======================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ======================================================
+    // PILLAR 2: Users Collection (The Entry Point)
+    // ======================================================
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['uid', 'role']) &&
+               data.uid == request.auth.uid &&
+               data.role in ['admin', 'partner', 'visitor'];
+      }
+
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Allow creation during login (anonymous or verified)
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      
+      // Only admins can change roles after creation
+      allow update: if (isAdmin() || (isOwner(userId) && incoming().role == existing().role)) && 
+                      isValidUser(incoming()) &&
+                      incoming().uid == existing().uid;
+    }
+
+    // ======================================================
+    // PILLAR 4: Daily Messages
+    // ======================================================
+    match /daily_messages/{dateId} {
+      allow read: if isSignedIn() && (isAdmin() || isPartner() || (request.time >= timestamp.value(1778313600000)));
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      // Allow public read so custom landing images can show on the login page
+      // Writing is still strictly protected for admins
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // PILLAR 6: Letters & Memories (Protected Content)
+    // ======================================================
+    match /letters/{letterId} {
+      allow read: if isSignedIn() && (isAdmin() || (isPartner() && isBirthdayReached()));
+      allow write: if isAdmin();
+    }
+
+    match /memories/{memoryId} {
+      allow read: if isSignedIn() && (isAdmin() || isPartner());
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // PILLAR 7: Open When Envelopes
+    // ======================================================
+    match /open_when_envelopes/{envelopeId} {
+      function isValidEnvelope(data) {
+        return data.keys().hasAll(['title', 'message', 'category']) &&
+               data.title is string && data.title.size() <= 200 &&
+               data.message is string && data.message.size() <= 5000 &&
+               data.category is string;
+      }
+
+      allow read: if isSignedIn() && (isAdmin() || (isPartner() && isBirthdayReached()));
+      allow create: if isAdmin() && isValidEnvelope(incoming());
+      allow update: if (isAdmin() && isValidEnvelope(incoming())) ||
+                      (isPartner() && isBirthdayReached() && incoming().diff(existing()).affectedKeys().hasOnly(['unlocked']));
+      allow delete: if isAdmin();
+    }
+
+    // ======================================================
+    // PILLAR 8: Health Check & System
+    // ======================================================
+    match /health/{docId} {
+      allow read: if true; // Publicly readable for health checks
+    }
+  }
+}

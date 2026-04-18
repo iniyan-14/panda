@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "DailyMessage": {
+      "title": "Daily Message",
+      "description": "A sweet message unlocked every day until the birthday.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "The date when this message unlocks in YYYY-MM-DD format." },
+        "message": { "type": "string", "description": "The actual message content." }
+      },
+      "required": ["date", "message"]
+    },
+    "Letter": {
+      "title": "Love Letter",
+      "description": "A heart-touching letter for the birthday girl.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "order": { "type": "number", "description": "Display order of the letter." }
+      },
+      "required": ["title", "content"]
+    },
+    "Memory": {
+      "title": "Memory Gallery Item",
+      "description": "A photo with a caption from the shared memories.",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["imageUrl", "caption"]
+    },
+    "Envelope": {
+      "title": "Open When Envelope",
+      "description": "A heartfelt message for a specific mood.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "voice"] },
+        "contentUrl": { "type": "string" },
+        "unlocked": { "type": "boolean" }
+      },
+      "required": ["title", "message", "category"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User account info and roles.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "partner", "visitor"] }
+      },
+      "required": ["role"]
+    }
+  },
+  "firestore": {
+    "/daily_messages/{date}": {
+      "schema": "DailyMessage",
+      "description": "Messages indexed by date."
+    },
+    "/letters/{letterId}": {
+      "schema": "Letter",
+      "description": "Letters collection."
+    },
+    "/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Memories collection."
+    },
+    "/open_when_envelopes/{envelopeId}": {
+      "schema": "Envelope",
+      "description": "Open when envelopes."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/settings/{docId}": {
+      "schema": "object",
+      "description": "Global settings like surprise content and jar messages."
+    },
+    "/health/{check}": {
+      "schema": "object",
+      "description": "Health check document."
+    }
+  }
+}

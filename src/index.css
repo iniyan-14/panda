@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+@theme {
+  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Georgia", serif;
+  --font-romantic: "Dancing Script", cursive;
+}
+
+:root {
+  --rose-soft: #fff9fa;
+  --rose-deep: #db919f;
+  --gold: #c5a059;
+  --ink: #2d2426;
+}
+
+body {
+  background-color: var(--rose-soft);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(219, 145, 159, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(197, 160, 89, 0.05) 0px, transparent 50%);
+  color: var(--ink);
+  @apply font-sans overflow-x-hidden;
+  cursor: default;
+}
+
+.heart-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  transition: transform 0.1s ease-out;
+}
+
+@keyframes heart-float {
+  0% { transform: translateY(0) scale(1); opacity: 0.8; }
+  100% { transform: translateY(-100vh) scale(1.5); opacity: 0; }
+}
+
+.floating-heart {
+  position: absolute;
+  bottom: -20px;
+  animation: heart-float linear infinite;
+}
+
+.card-shadow {
+  box-shadow: 0 10px 25px rgba(232, 165, 178, 0.15);
+}
+
+/* Hide reCAPTCHA badge for cleaner UI */
+.grecaptcha-badge { 
+  visibility: hidden !important; 
+}
