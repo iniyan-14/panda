@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, X, Plus, Trash2, Send } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { JarData } from '../types';
 
 interface JarOfHeartsProps {
@@ -28,24 +28,19 @@ export default function JarOfHearts({ isAdmin }: JarOfHeartsProps) {
   const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
-    const fetchJar = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'settings', 'jar'));
-        if (docSnap.exists()) {
-          setData(docSnap.data() as JarData);
-        } else {
-          try {
-            await setDoc(doc(db, 'settings', 'jar'), { messages: DEFAULT_MESSAGES });
-          } catch (e) {
-            console.warn("Could not auto-create jar settings, using defaults.");
-          }
-        }
-      } catch (err) {
-        console.error("Jar of Hearts failed to load:", err);
-        // Data already has DEFAULT_MESSAGES from state initialization
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'jar'), (docSnap) => {
+      if (docSnap.exists()) {
+        setData(docSnap.data() as JarData);
+      } else {
+        // Initialize if doc doesn't exist
+        setDoc(doc(db, 'settings', 'jar'), { messages: DEFAULT_MESSAGES })
+          .catch(e => console.warn("Could not auto-create jar settings:", e));
       }
-    };
-    fetchJar();
+    }, (error) => {
+      console.error("Jar of Hearts listener failed:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const drawHeart = () => {

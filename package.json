@@ -1,5 +1,6 @@
 {
-  "name": "react-example",
+  "name": "eternal-love",
+
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,7 +12,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "browser-image-compression": "^2.0.2",

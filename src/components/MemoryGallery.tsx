@@ -43,6 +43,28 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
 
+  useEffect(() => {
+    if (showAddModal || selectedMemory) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showAddModal, selectedMemory]);
+
+  useEffect(() => {
+    if (showAddModal || selectedMemory) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showAddModal, selectedMemory]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -314,12 +336,12 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
       {/* Add Memory Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 backdrop-blur-md bg-[var(--ink)]/40">
+          <div className="fixed inset-0 z-[110] flex flex-col items-center justify-start p-6 backdrop-blur-md bg-[var(--ink)]/40 overflow-y-auto pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white p-6 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl max-w-md w-full relative border border-[var(--rose-deep)]/20 max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="bg-white p-6 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl max-w-md w-full relative border border-[var(--rose-deep)]/20 max-h-[90vh] overflow-y-auto custom-scrollbar my-auto"
             >
               <button onClick={() => setShowAddModal(false)} className="absolute top-8 right-8 text-gray-400 hover:text-gray-600 transition-colors">
                 <LucideX size={28} />

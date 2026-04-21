@@ -19,6 +19,17 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
 
+  useEffect(() => {
+    if (showAddModal || selectedLetter) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showAddModal, selectedLetter]);
+
   const isTodayOrPast = (dateStr: string) => {
     if (!dateStr) return true;
     const today = new Date();
@@ -247,7 +258,7 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
 
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 backdrop-blur-md bg-[var(--ink)]/40 overflow-y-auto pt-20">
+          <div className="fixed inset-0 z-[110] flex flex-col items-center justify-start p-6 backdrop-blur-md bg-[var(--ink)]/40 overflow-y-auto pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -310,12 +321,7 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
 
       <AnimatePresence>
         {selectedLetter && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-auto overflow-y-auto"
-          >
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-start p-4 backdrop-blur-md bg-[var(--ink)]/40 overflow-y-auto pointer-events-auto">
             <motion.div 
               className="fixed inset-0 bg-[var(--ink)]/40 backdrop-blur-md"
               onClick={() => setSelectedLetter(null)}
@@ -355,7 +361,7 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
 
               <div className="absolute inset-0 pointer-events-none opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')] rounded-lg z-[-1]" />
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>

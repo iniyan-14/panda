@@ -2,17 +2,31 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactConfetti from 'react-confetti';
 import useWindowSize from 'react-use/lib/useWindowSize';
-import { Sparkles as LucideSparkles, Heart as LucideHeart, Edit2 as LucideEdit2, X as LucideX, Check as LucideCheck, Video as LucideVideo, Music as LucideMusic, Trash2 as LucideTrash2, Image as LucideImage, Mail as LucideMail, Coffee as LucideCoffee, Gift as LucideGift, Lock as LucideLock } from 'lucide-react';
+import { 
+  Sparkles as LucideSparkles, 
+  Heart as LucideHeart, 
+  Edit2 as LucideEdit2, 
+  X as LucideX, 
+  Check as LucideCheck, 
+  Video as LucideVideo, 
+  Music as LucideMusic, 
+  Trash2 as LucideTrash2, 
+  Image as LucideImage, 
+  Mail as LucideMail, 
+  Coffee as LucideCoffee, 
+  Gift as LucideGift, 
+  Lock as LucideLock 
+} from 'lucide-react';
 import Typewriter from 'typewriter-effect';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { SurpriseData } from '../types';
+import ThinkingStatus from './ThinkingStatus';
 
 interface SurpriseProps {
   isAdmin?: boolean;
+  sharedSettings: SurpriseData | null;
 }
-
-import { SurpriseData } from '../types';
-import ThinkingStatus from './ThinkingStatus';
 
 const DEFAULT_SURPRISE: SurpriseData = {
   heading: "Happy birthday my Nandhuu!",
@@ -27,11 +41,11 @@ const DEFAULT_SURPRISE: SurpriseData = {
     "You are my absolute everything, my star, my heart.",
     "I hope this year brings you as much joy as you give me."
   ],
-  preBirthdayMusic: "",
-  birthdayMusic: ""
+  preBirthdayMusic: "https://drive.google.com/file/d/1WMtBsqJ2DRvZrB5xH05RZy6lO3p1BdfN/view?usp=sharing",
+  birthdayMusic: "https://drive.google.com/file/d/194upUxOd8RsJn-YJkocnJYUENGrcWpj7/view?usp=sharing"
 };
 
-export default function Surprise({ isAdmin }: SurpriseProps) {
+export default function Surprise({ isAdmin, sharedSettings }: SurpriseProps) {
   const { width, height } = useWindowSize();
   const [showConfetti, setShowConfetti] = useState(true);
   const [data, setData] = useState<SurpriseData>(DEFAULT_SURPRISE);
@@ -41,6 +55,17 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
   const [musicUploadLoading, setMusicUploadLoading] = useState<'pre' | 'bday' | null>(null);
   const [videoUploadLoading, setVideoUploadLoading] = useState(false);
   const [landingUploadLoading, setLandingUploadLoading] = useState(false);
+
+  const getDirectVideoLink = (url: string) => {
+    if (!url) return url;
+    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+      const idMatch = url.match(/\/file\/d\/([^/]+)\//) || 
+                      url.match(/\/file\/d\/([^/]+)/) || 
+                      url.match(/id=([^&]+)/);
+      if (idMatch) return `https://docs.google.com/uc?export=media&id=${idMatch[1]}`;
+    }
+    return url;
+  };
 
   const handleLandingUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,21 +126,14 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
   };
 
   useEffect(() => {
-    const fetchSurprise = async () => {
-      try {
-        const docRef = doc(db, 'settings', 'surprise');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setData(docSnap.data() as SurpriseData);
-          setEditData(docSnap.data() as SurpriseData);
-        }
-      } catch (err) {
-        console.error("Surprise content failed to load:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSurprise();
+    if (sharedSettings) {
+      setData(sharedSettings);
+      setEditData(sharedSettings);
+      setLoading(false);
+    }
+  }, [sharedSettings]);
+
+  useEffect(() => {
     const timer = setTimeout(() => setShowConfetti(false), 15000);
     return () => clearTimeout(timer);
   }, []);
@@ -132,6 +150,17 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
     }
   };
 
+  useEffect(() => {
+    if (isEditing) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isEditing]);
+
   if (loading) return null;
 
   return (
@@ -139,7 +168,7 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="py-12 flex flex-col items-center relative"
+      className="py-12 flex flex-col items-center relative w-full"
     >
       {showConfetti && <ReactConfetti width={width} height={height} colors={['#fdf2f4', '#e8a5b2', '#d4af37']} />}
 
@@ -188,7 +217,7 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
         </div>
       </div>
 
-      <div className="w-full max-w-4xl aspect-video rounded-[3rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.3)] border-8 border-white/50 relative group mb-16 no-scrollbar backdrop-blur-sm">
+      <div className="w-full max-w-4xl aspect-video rounded-[3rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.3)] border-8 border-white/50 relative group mb-16 backdrop-blur-sm">
         <div className="absolute inset-0 bg-[var(--ink)] flex items-center justify-center">
             {data.videoUrl ? (
               <video 
@@ -196,9 +225,11 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
                 className="w-full h-full object-cover"
                 controls
                 autoPlay
-                src={data.videoUrl}
+                muted
+                src={getDirectVideoLink(data.videoUrl)}
               />
             ) : (
+
               <div className="flex flex-col items-center gap-4 text-white/40">
                 <LucideVideo size={48} />
                 <p className="font-serif italic text-sm">Waiting for your magical video...</p>
@@ -243,12 +274,12 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
 
       <AnimatePresence>
         {isEditing && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 backdrop-blur-md bg-[var(--ink)]/80 overflow-y-auto pt-10 pb-20">
+          <div className="fixed inset-0 z-[110] flex justify-center items-start p-4 md:p-8 backdrop-blur-md bg-[var(--ink)]/80 overflow-y-auto pointer-events-auto custom-scrollbar">
             <motion.div
               initial={{ opacity: 0, y: 50, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 50, scale: 0.95 }}
-              className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl max-w-3xl w-full relative border border-white/20 mb-10"
+              className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl max-w-3xl w-full relative border border-white/20 my-auto"
             >
               {/* Sticky Header */}
               <div className="sticky top-0 bg-white/90 backdrop-blur-md z-30 px-8 py-6 border-b border-gray-100 flex justify-between items-center rounded-t-[2.5rem] md:rounded-t-[4rem]">
@@ -300,7 +331,7 @@ export default function Surprise({ isAdmin }: SurpriseProps) {
                     {editData.landingImageUrl && (
                       <div className="mt-6 flex items-center gap-4 p-4 bg-white/60 rounded-2xl border border-white/80">
                          <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm shrink-0 border border-gray-100">
-                           <img src={editData.landingImageUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                           <img src={editData.landingImageUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Landing wallpaper preview" />
                          </div>
                          <div>
                             <p className="text-[10px] font-bold text-[var(--ink)] uppercase">Current Preview</p>

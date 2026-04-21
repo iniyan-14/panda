@@ -37,12 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
+        // Load profile from cache first to be resilient to quota issues
+        const cachedProfile = localStorage.getItem(`user_profile_${user.uid}`);
+        if (cachedProfile) {
+          try { setProfile(JSON.parse(cachedProfile)); } catch (e) {}
+        }
+
         const userDocRef = doc(db, 'users', user.uid);
         let userDoc;
         try {
           userDoc = await getDoc(userDocRef);
         } catch (error) {
-          console.error("Auth: Failed to get user profile", error);
+          console.warn("Auth: Failed to get user profile (likely quota), using cache", error);
           setLoading(false);
           return;
         }
@@ -74,8 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const updatedProfile = { ...currentProfile, role: detectedRole };
             await setDoc(userDocRef, updatedProfile, { merge: true });
             setProfile(updatedProfile);
+            localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(updatedProfile));
           } else {
             setProfile(currentProfile);
+            localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(currentProfile));
           }
         } else if (!user.isAnonymous) {
           // Only create default profiles automatically for non-anonymous (email/Google) users
@@ -88,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           await setDoc(userDocRef, newProfile);
           setProfile(newProfile);
+          localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(newProfile));
         } else {
           // user is anonymous and doc doesn't exist yet
           // we wait for the signInWithCode function to complete its setDoc
@@ -131,27 +140,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithCode = async (code: string) => {
-    // Robust access to environment variables
-    // @ts-ignore
-    const VITE_ADMIN_CODE = import.meta.env.VITE_ADMIN_CODE;
-    // @ts-ignore
-    const VITE_PARTNER_CODE = import.meta.env.VITE_PARTNER_CODE;
+    const { ADMIN_CODE, PARTNER_CODE } = await import('../constants');
+    
+    let role: 'admin' | 'partner' | null = null;
 
-    // Use environment variables or fallback to defaults if not set in some environments
-    const adminCode = (VITE_ADMIN_CODE || 'LOVE2026').trim().toUpperCase();
-    const partnerCode = (VITE_PARTNER_CODE || 'FOREVER').trim().toUpperCase();
-
-    let role: 'admin' | 'partner' | 'visitor' = 'visitor';
-    const inputCode = code.trim().toUpperCase();
-
-    if (inputCode && inputCode === adminCode) {
+    if (code === ADMIN_CODE) {
       role = 'admin';
-    } else if (inputCode && inputCode === partnerCode) {
+    } else if (code === PARTNER_CODE) {
       role = 'partner';
     }
 
-    if (role === 'visitor') {
-      throw new Error('Invalid Secret Access Code. Please check the code and try again.');
+    if (!role) {
+      throw new Error('This world is not for you 🤍');
     }
 
     // Authenticate anonymously
@@ -167,7 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     await setDoc(doc(db, 'users', anonUser.uid), profileData);
     setProfile(profileData);
+    localStorage.setItem(`user_profile_${anonUser.uid}`, JSON.stringify(profileData));
   };
+
+
 
   const signOut = async () => {
     await firebaseSignOut(auth);
