@@ -98,9 +98,10 @@ service cloud.firestore {
     // PILLAR 6: Letters & Memories (Protected Content)
     // ======================================================
     match /letters/{letterId} {
-      allow read: if isSignedIn() && (isAdmin() || (isPartner() && isBirthdayReached()));
+      allow read: if isSignedIn() && (isAdmin() || isPartner());
       allow write: if isAdmin();
     }
+
 
     match /memories/{memoryId} {
       allow read: if isSignedIn() && (isAdmin() || isPartner());
@@ -118,7 +119,8 @@ service cloud.firestore {
                data.category is string;
       }
 
-      allow read: if isSignedIn() && (isAdmin() || (isPartner() && isBirthdayReached()));
+      allow read: if isSignedIn() && (isAdmin() || isPartner());
+
       allow create: if isAdmin() && isValidEnvelope(incoming());
       allow update: if (isAdmin() && isValidEnvelope(incoming())) ||
                       (isPartner() && isBirthdayReached() && incoming().diff(existing()).affectedKeys().hasOnly(['unlocked']));

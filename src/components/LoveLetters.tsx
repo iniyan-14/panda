@@ -180,7 +180,13 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
       <div className="flex flex-wrap justify-center gap-10">
         {letters
           .filter(l => (showTrash ? l.archived : !l.archived))
+          .filter(l => {
+            if (isAdmin) return true;
+            if (!l.unlockDate) return true;
+            return isTodayOrPast(l.unlockDate);
+          })
           .map((letter) => {
+
             const isLocked = letter.unlockDate && !isTodayOrPast(letter.unlockDate);
             
             return (
