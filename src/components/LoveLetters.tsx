@@ -4,8 +4,10 @@ import { Mail, MailOpen, X, Plus, Trash2, Check, Pen, Lock, Unlock, RotateCcw } 
 import { db } from '../firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LoveLetter } from '../types';
+import { TARGET_DATE } from '../constants';
 
 interface LoveLettersProps {
+
   isAdmin?: boolean;
 }
 
@@ -244,8 +246,9 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
                 {letter.unlockDate && (
                   <div className="absolute top-4 left-4">
                     <span className="text-[8px] uppercase font-black tracking-widest text-[var(--rose-deep)] opacity-40">
-                      {letter.unlockDate === '2026-05-10' ? 'Birthday Special' : 'Scheduled'}
+                      {letter.unlockDate === TARGET_DATE.split('T')[0] ? 'Birthday Special' : 'Scheduled'}
                     </span>
+
                   </div>
                 )}
                 

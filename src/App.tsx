@@ -180,7 +180,8 @@ function MainApp() {
     { id: 'daily', label: 'Daily Whisper', icon: LucideHeart, locked: false },
     { id: 'open_when', label: 'When...', icon: LucideSparkles, locked: isPartner && !isUnlocked },
     { id: 'gallery', label: 'Memories', icon: LucideImage, locked: isPartner && !isUnlocked },
-    { id: 'letters', label: 'Letters', icon: LucideMail, locked: isPartner && !isUnlocked },
+    { id: 'letters', label: 'Letters', icon: LucideMail, locked: false },
+
     { id: 'jar', label: 'Motivation', icon: LucideCoffee, locked: isPartner && !isUnlocked },
     { id: 'surprise', label: 'Surprise', icon: LucideGift, locked: isPartner && !isUnlocked },
   ];
