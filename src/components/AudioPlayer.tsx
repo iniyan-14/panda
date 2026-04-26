@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Music as LucideMusic, Music2 as LucideMusic2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { SurpriseData } from '../types';
+import { getDirectDriveLink } from '../utils/driveUtils';
 
 interface AudioPlayerProps {
   isUnlocked: boolean;
+  settings?: SurpriseData | null;
 }
 
-export default function AudioPlayer({ isUnlocked }: AudioPlayerProps) {
+export default function AudioPlayer({ isUnlocked, settings }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -37,18 +40,24 @@ export default function AudioPlayer({ isUnlocked }: AudioPlayerProps) {
         audioRef.current.play().catch(() => setIsPlaying(false));
       }
     }
-  }, [isUnlocked]);
+  }, [isUnlocked, settings]);
 
   return (
-    <div className="fixed top-6 right-6 z-50">
-      <audio 
+    <div>
+      <audio
         id="bg-music"
         key={isUnlocked ? 'birthday' : 'regular'}
-        ref={audioRef} 
-        loop 
+        ref={audioRef}
+        loop
         preload="auto"
       >
-        <source src={isUnlocked ? "/audio/birthday.mp3" : "/audio/love1.mp3"} type="audio/mpeg" />
+        <source
+          src={isUnlocked
+            ? getDirectDriveLink(settings?.birthdayMusic || "/audio/birthday.mp3", 'audio')
+            : getDirectDriveLink(settings?.preBirthdayMusic || "/audio/love1.mp3", 'audio')
+          }
+          type="audio/mpeg"
+        />
       </audio>
 
 
@@ -56,7 +65,7 @@ export default function AudioPlayer({ isUnlocked }: AudioPlayerProps) {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={togglePlay}
-        className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center text-white shadow-[0_8px_32px_rgba(255,182,193,0.3)] hover:bg-white/30 transition-all group"
+        className="w-12 h-12 rounded-full bg-rose-500/10 backdrop-blur-xl border border-rose-200 flex items-center justify-center text-rose-600 shadow-lg hover:bg-rose-500/20 transition-all group"
       >
         <AnimatePresence mode="wait">
           {isLoading ? (
@@ -71,7 +80,7 @@ export default function AudioPlayer({ isUnlocked }: AudioPlayerProps) {
               className="relative"
             >
               <LucideMusic2 size={20} className="text-rose-300" />
-              <motion.div 
+              <motion.div
                 animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.6, 0.3] }}
                 transition={{ duration: 2, repeat: Infinity }}
                 className="absolute inset-0 bg-rose-400 rounded-full blur-md -z-10"

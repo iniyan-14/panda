@@ -15,6 +15,7 @@ export interface Memory {
   imageUrl: string;
   caption: string;
   date: string;
+  type?: 'image' | 'video';
 }
 
 export interface LoveLetter {

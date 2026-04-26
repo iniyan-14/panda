@@ -21,146 +21,53 @@ import {
   ChevronLeft as LucideChevronLeft, 
   ChevronRight as LucideChevronRight, 
   Minimize2 as LucideMinimize2,
-  Image as LucideImage
+  Image as LucideImage,
+  ExternalLink as LucideExternalLink
 } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import imageCompression from 'browser-image-compression';
+import { getDirectDriveLink, getDriveThumbnail } from '../utils/driveUtils';
+
+import { STATIC_MEMORIES } from '../data/staticData';
 
 interface MemoryGalleryProps {
   isAdmin?: boolean;
 }
 
 export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
-  const [memories, setMemories] = useState<Memory[]>([]);
+  const [memories, setMemories] = useState<Memory[]>(STATIC_MEMORIES);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMemory, setNewMemory] = useState({ imageUrls: [] as string[], caption: '', date: new Date().toISOString().split('T')[0] });
   const [singleImageUrl, setSingleImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [bulkAddText, setBulkAddText] = useState('');
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
-  useEffect(() => {
-    if (showAddModal || selectedMemory) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showAddModal, selectedMemory]);
-
-  useEffect(() => {
-    if (showAddModal || selectedMemory) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showAddModal, selectedMemory]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      setUploadLoading(true);
-      const fileArray = Array.from(files) as File[];
-      const newUrls: string[] = [];
-
-      const compressionOptions = {
-        maxSizeMB: 0.8,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      };
-
-      try {
-        for (const file of fileArray) {
-          let fileToProcess = file;
-          
-          if (file.type.startsWith('image/')) {
-            // Compress large images
-            if (file.size > 800000) {
-              try {
-                fileToProcess = await imageCompression(file, compressionOptions);
-              } catch (err) {
-                console.error("Compression failed:", err);
-              }
-            }
-          } else if (file.type.startsWith('video/')) {
-            if (file.size > 100000000) { // Limit videos to 100MB
-              alert(`Video ${file.name} is too large (>100MB). skipping.`);
-              continue;
-            }
-          }
-
-          const reader = new FileReader();
-          const dataUrl = await new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(fileToProcess);
-          });
-
-          // Firestore document limit is 1MB. Base64 is ~33% larger than binary.
-          // Accurate check: base64 length in bytes
-          if (dataUrl.length > 1000000) {
-            alert(`File ${file.name} is still too large for our memory bank after optimization. Please use a direct image/video URL for this one!`);
-            continue;
-          }
-
-          newUrls.push(dataUrl);
-        }
-        
-        setNewMemory(p => ({ ...p, imageUrls: [...p.imageUrls, ...newUrls] }));
-      } catch (error) {
-        console.error("Upload failed:", error);
-      } finally {
-        setUploadLoading(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    fetchMemories(true);
-  }, []);
-
-  const fetchMemories = async (isInitial = false) => {
-    if (!isInitial && !hasMore) return;
+  const fetchMemories = async () => {
     setLoading(true);
     try {
-      const memoriesRef = collection(db, 'memories');
-      let q;
-      if (isInitial) {
-        q = query(memoriesRef, orderBy('date', 'desc'), limit(12));
-      } else {
-        q = query(memoriesRef, orderBy('date', 'desc'), startAfter(lastDoc), limit(12));
-      }
-      
+      const q = query(collection(db, 'memories'), orderBy('date', 'desc'));
       const querySnapshot = await getDocs(q);
-      const fetchedMemories = querySnapshot.docs.map(doc => {
-        const data = doc.data() as any;
-        return {
-          id: doc.id,
-          ...data
-        };
-      }) as Memory[];
+      const dbMemories = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Memory));
       
-      if (isInitial) {
-        setMemories(fetchedMemories);
-      } else {
-        setMemories(prev => [...prev, ...fetchedMemories]);
-      }
-      
-      setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      setHasMore(querySnapshot.docs.length === 12);
+      // Combine static memories with database memories
+      // Database memories (new ones) come first
+      setMemories([...dbMemories, ...STATIC_MEMORIES]);
     } catch (error) {
-      console.error(error);
+      console.error("Fetch memories error:", error);
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    fetchMemories();
+  }, []);
 
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,9 +92,67 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
       setNewMemory({ imageUrls: [], caption: '', date: new Date().toISOString().split('T')[0] });
       setSingleImageUrl('');
       setShowAddModal(false);
-      fetchMemories(true);
+      fetchMemories();
     } catch (error) {
       console.error(error);
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleBulkAdd = async () => {
+    if (!bulkAddText.trim()) return;
+    setIsSubmitting(true);
+    
+    // Extract everything that looks like a URL or a drive ID
+    // Improved regex to catch links even if they don't have http(s) if they start with drive.google.com
+    const urlRegex = /((?:https?:\/\/)?(?:drive|docs)\.google\.com\/[^\s,]+|https?:\/\/[^\s,]+)/g;
+    const rawUrls = bulkAddText.match(urlRegex) || [];
+    
+    // Clean and normalize URLs
+    const processedUrls = rawUrls.map(url => {
+      let cleanUrl = url.trim();
+      if (cleanUrl.startsWith('drive.google.com') || cleanUrl.startsWith('docs.google.com')) {
+        cleanUrl = 'https://' + cleanUrl;
+      }
+      return cleanUrl;
+    });
+
+    const urls = processedUrls.filter(url => !url.includes('/folders/'));
+    const discardedFolders = processedUrls.length - urls.length;
+    
+    if (urls.length === 0) {
+      alert("No valid file links found! If you're pasting from Drive, make sure to copy individual 'Share' links, not folder links.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      // Use Firestore batch for efficiency
+      const { writeBatch } = await import('firebase/firestore');
+      const batch = writeBatch(db);
+      const memoriesRef = collection(db, 'memories');
+      
+      urls.forEach(url => {
+        const newDocRef = doc(memoriesRef);
+        batch.set(newDocRef, {
+          imageUrl: url,
+          caption: "Our Story ❤️",
+          date: new Date().toISOString().split('T')[0]
+        });
+      });
+      
+      await batch.commit();
+      
+      setBulkAddText('');
+      setShowBulkModal(false);
+      await fetchMemories();
+      
+      let msg = `Success! Added ${urls.length} memories.`;
+      if (discardedFolders > 0) msg += ` (Skipped ${discardedFolders} folder links)`;
+      alert(msg);
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      alert("Something went wrong during bulk upload. Please check your internet connection.");
     }
     setIsSubmitting(false);
   };
@@ -202,6 +167,30 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleClearAllMemories = async () => {
+    if (!window.confirm('WARNING: This will permanently delete ALL memories in the database. This cannot be undone. Are you sure?')) return;
+    setIsSubmitting(true);
+    try {
+      const { writeBatch } = await import('firebase/firestore');
+      const memoriesRef = collection(db, 'memories');
+      const querySnapshot = await getDocs(memoriesRef);
+      
+      // Batch deletes (max 500 per batch)
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      
+      await batch.commit();
+      setMemories([]);
+      alert("All memories have been cleared successfully.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to clear memories. Check if you are correctly logged in as Admin.");
+    }
+    setIsSubmitting(false);
   };
 
   const handleSetLoginImage = async (imageUrl: string, e: React.MouseEvent) => {
@@ -248,21 +237,43 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
         <p className="text-[var(--ink)] opacity-60 font-sans tracking-[0.3em] uppercase text-[10px] font-black">A Living Gallery of Us</p>
         
         {isAdmin && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="mt-8 mx-auto flex items-center gap-3 px-8 py-4 bg-[var(--rose-deep)] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:bg-[var(--ink)] transition-all shadow-xl hover:-translate-y-1"
-          >
-            <LucidePlus size={18} />
-            Add New Memory
-          </button>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-3 px-8 py-4 bg-[var(--rose-deep)] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:bg-[var(--ink)] transition-all shadow-xl hover:-translate-y-1"
+            >
+              <LucidePlus size={18} />
+              Add Single
+            </button>
+            <button
+              onClick={() => setShowBulkModal(true)}
+              className="flex items-center gap-3 px-8 py-4 bg-[var(--gold)] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:bg-[var(--ink)] transition-all shadow-xl hover:-translate-y-1"
+            >
+              <LucideUpload size={18} />
+              Bulk Add Links
+            </button>
+            <button
+              onClick={handleClearAllMemories}
+              className="flex items-center gap-3 px-8 py-4 bg-red-100 text-red-600 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-red-200 transition-all shadow-md"
+            >
+              <LucideTrash2 size={18} />
+              Remove All Data
+            </button>
+          </div>
         )}
       </div>
+
+      {!loading && memories.length === 0 && (
+        <div className="text-center py-20 bg-white/40 backdrop-blur-md rounded-[3rem] border-2 border-dashed border-[var(--rose-soft)]">
+          <LucideHeart size={48} className="mx-auto text-[var(--rose-deep)] opacity-20 mb-4" />
+          <p className="text-[var(--ink)] opacity-40 font-serif italic">Your memory bank is empty. Start adding our stories! ❤️</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
         {memories.map((memory) => (
           <motion.div
             key={memory.id}
-            layoutId={`memory-${memory.id}`}
             onClick={() => setSelectedMemory(memory)}
             whileHover={{ y: -8 }}
             className="group cursor-pointer bg-white rounded-[2.5rem] overflow-hidden shadow-xl card-shadow border border-[var(--rose-deep)]/5 relative"
@@ -286,7 +297,10 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
             )}
             <div className="aspect-[4/5] overflow-hidden relative bg-gray-100 flex items-center justify-center">
               {memory.imageUrl && (
-                memory.imageUrl.startsWith('data:video') ? (
+                memory.type === 'video' || 
+                memory.imageUrl.includes('.mp4') || 
+                memory.imageUrl.includes('.mov') ||
+                (memory.imageUrl.includes('drive.google.com') && memory.type === 'video') ? (
                   <div className="w-full h-full flex items-center justify-center bg-gray-900 group-hover:bg-gray-800 transition-colors">
                     <LucidePlay size={48} className="text-white fill-white/20" />
                     <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-full">
@@ -295,17 +309,31 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
                   </div>
                 ) : (
                   <img 
-                    src={memory.imageUrl} 
+                    src={getDriveThumbnail(memory.imageUrl)} 
                     alt={memory.caption} 
                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (memory.imageUrl.includes('docs.google.com')) {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          const icon = document.createElement('div');
+                          icon.className = "flex flex-col items-center gap-2";
+                          icon.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="2" fill="none" class="text-white opacity-40"><path d="M15 10l5 5-5 5M4 10l5 5-5 5M12 4v16"></path></svg><span class="text-[10px] text-white/40 uppercase font-black tracking-widest">Media Link</span>';
+                          parent.appendChild(icon);
+                        }
+                      }
+                    }}
                   />
                 )
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-[var(--ink)]/90 via-[var(--ink)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-8">
-                <p className="text-white font-serif italic text-xl leading-snug mb-3 line-clamp-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">{memory.caption}</p>
+                {memory.caption && !memory.caption.startsWith('Memory ') && (
+                  <p className="text-white font-serif italic text-xl leading-snug mb-3 line-clamp-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">{memory.caption}</p>
+                )}
                 <div className="flex items-center gap-2 text-white/70 text-[10px] font-black uppercase tracking-[0.2em]">
-                  {/* Date removed as per request */}
                 </div>
               </div>
             </div>
@@ -360,7 +388,7 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
                           <span className="text-[10px] font-black uppercase text-[var(--ink)] tracking-widest">Bulk Upload Photos & Videos</span>
                           <p className="text-[9px] text-gray-400 font-medium italic">Max 100MB per file. Items over 1MB should use external URLs for best results.</p>
                         </div>
-                        <input type="file" className="hidden" accept="image/*,video/*" multiple onChange={handleFileUpload} disabled={uploadLoading} />
+                        <input type="file" className="hidden" accept="image/*,video/*" multiple disabled={uploadLoading} />
                         {uploadLoading && (
                           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-20">
                             <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
@@ -479,20 +507,34 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
 
               <button 
                 onClick={() => setSelectedMemory(null)}
-                className="absolute top-6 right-6 z-50 w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/40 transition-all border border-white/30"
+                className="absolute top-6 right-6 z-50 w-12 h-12 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/80 transition-all border border-white/20"
               >
-                <LucideX size={28} />
+                <LucideX size={32} />
               </button>
               
               <div className="flex-1 h-3/5 md:h-full relative overflow-hidden bg-black flex items-center justify-center group/viewer">
                 {selectedMemory.imageUrl && (
-                  selectedMemory.imageUrl.startsWith('data:video') ? (
-                    <video 
-                      src={selectedMemory.imageUrl} 
-                      controls 
-                      className="max-w-full max-h-full"
-                      autoPlay
-                    />
+                  selectedMemory.type === 'video' || 
+                  selectedMemory.imageUrl.includes('.mp4') ||
+                  selectedMemory.imageUrl.includes('.mov') ||
+                  (selectedMemory.imageUrl.includes('drive.google.com') && selectedMemory.type === 'video') ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-black relative group/video">
+                      <video 
+                        src={getDirectDriveLink(selectedMemory.imageUrl, 'video')} 
+                        className="max-w-full max-h-full"
+                        controls
+                        playsInline
+                        poster={getDriveThumbnail(selectedMemory.imageUrl)}
+                      />
+                      <a 
+                        href={selectedMemory.imageUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="absolute top-4 right-20 z-50 px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-2"
+                      >
+                        <LucideExternalLink size={14} /> Watch on Drive
+                      </a>
+                    </div>
                   ) : (
                     <TransformWrapper
                       initialScale={1}
@@ -524,7 +566,7 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
                             contentClassName="!w-full !h-full flex items-center justify-center"
                           >
                             <img 
-                              src={selectedMemory.imageUrl} 
+                              src={getDirectDriveLink(selectedMemory.imageUrl, 'image')} 
                               alt={selectedMemory.caption} 
                               className="max-w-full max-h-full object-contain cursor-move"
                               referrerPolicy="no-referrer"
@@ -558,9 +600,11 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
                 </div>
 
                 <div className="flex flex-col flex-1 justify-center py-2 md:py-4">
-                  <h3 className="text-xl md:text-2xl font-serif italic text-[var(--ink)] leading-[1.4] mb-4 md:mb-6">
-                    "{selectedMemory.caption}"
-                  </h3>
+                  {selectedMemory.caption && !selectedMemory.caption.trim().toLowerCase().startsWith('memory') && (
+                    <h3 className="text-xl md:text-2xl font-serif italic text-[var(--ink)] leading-[1.4] mb-4 md:mb-6">
+                      "{selectedMemory.caption}"
+                    </h3>
+                  )}
                   
                   <div className="w-12 md:w-16 h-1 bg-[var(--rose-soft)] rounded-full mb-4 md:mb-6"></div>
                   
@@ -578,6 +622,44 @@ export default function MemoryGallery({ isAdmin }: MemoryGalleryProps) {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Add Modal */}
+      <AnimatePresence>
+        {showBulkModal && (
+          <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center p-6 backdrop-blur-md bg-[var(--ink)]/40 pointer-events-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white p-6 md:p-12 rounded-[2rem] md:rounded-[3rem] shadow-2xl max-w-md w-full relative border border-[var(--gold)]/20"
+            >
+              <button onClick={() => setShowBulkModal(false)} className="absolute top-8 right-8 text-gray-400 hover:text-gray-600 transition-colors">
+                <LucideX size={28} />
+              </button>
+              
+              <h3 className="text-3xl font-serif italic text-[var(--ink)] mb-6 text-center">Drive Link Importer</h3>
+              <p className="text-[10px] text-center mb-8 uppercase tracking-widest opacity-60 font-black">Paste all your Drive links below</p>
+              
+              <div className="space-y-6">
+                <textarea
+                  value={bulkAddText}
+                  onChange={e => setBulkAddText(e.target.value)}
+                  className="w-full px-6 py-4 bg-[var(--rose-soft)]/10 border-2 border-[var(--rose-soft)]/50 rounded-2xl focus:outline-none focus:border-[var(--gold)] h-64 resize-none text-xs font-mono"
+                  placeholder="Paste links here... You can paste the whole list from Drive!"
+                />
+                
+                <button
+                  onClick={handleBulkAdd}
+                  disabled={isSubmitting || !bulkAddText.trim()}
+                  className="w-full py-5 bg-[var(--ink)] text-white rounded-2xl font-bold tracking-[0.2em] uppercase text-xs flex items-center justify-center gap-3 hover:bg-[var(--gold)] transition-all shadow-xl disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Importing...' : <><LucideCheck size={18} /> Import to Gallery</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactConfetti from 'react-confetti';
 import useWindowSize from 'react-use/lib/useWindowSize';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { 
   Sparkles as LucideSparkles, 
   Heart as LucideHeart, 
@@ -15,13 +17,13 @@ import {
   Mail as LucideMail, 
   Coffee as LucideCoffee, 
   Gift as LucideGift, 
-  Lock as LucideLock 
+  Lock as LucideLock,
+  Settings as LucideSettings 
 } from 'lucide-react';
 import Typewriter from 'typewriter-effect';
-import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { SurpriseData } from '../types';
 import ThinkingStatus from './ThinkingStatus';
+import { getDirectDriveLink } from '../utils/driveUtils';
 
 interface SurpriseProps {
   isAdmin?: boolean;
@@ -56,16 +58,22 @@ export default function Surprise({ isAdmin, sharedSettings }: SurpriseProps) {
   const [videoUploadLoading, setVideoUploadLoading] = useState(false);
   const [landingUploadLoading, setLandingUploadLoading] = useState(false);
 
-  const getDirectVideoLink = (url: string) => {
-    if (!url) return url;
-    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
-      const idMatch = url.match(/\/file\/d\/([^/]+)\//) || 
-                      url.match(/\/file\/d\/([^/]+)/) || 
-                      url.match(/id=([^&]+)/);
-      if (idMatch) return `https://docs.google.com/uc?export=media&id=${idMatch[1]}`;
-    }
-    return url;
+  const [appLocks, setAppLocks] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) {
+        setAppLocks(doc.data().locks || {});
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const toggleLock = async (tabId: string) => {
+    const newLocks = { ...appLocks, [tabId]: !appLocks[tabId] };
+    await setDoc(doc(db, 'settings', 'global'), { locks: newLocks }, { merge: true });
   };
+
 
   const handleLandingUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -191,6 +199,57 @@ export default function Surprise({ isAdmin, sharedSettings }: SurpriseProps) {
         </div>
       )}
 
+      {isAdmin && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-4xl mx-auto mb-16 bg-white/40 backdrop-blur-xl border border-white/40 p-8 rounded-[3rem] shadow-xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-5">
+            <LucideSettings size={100} className="text-[var(--rose-deep)]" />
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-500">
+                <LucideSettings size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl font-serif italic text-[var(--ink)]">App Control Center</h3>
+                <p className="text-[8px] text-rose-400 font-black uppercase tracking-widest mt-0.5">Real-time Override</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                { id: 'gallery', label: 'Memories', icon: LucideImage },
+                { id: 'letters_advance', label: 'Advance Letters', icon: LucideMail },
+                { id: 'letters_birthday', label: 'Birthday Letters', icon: LucideMail },
+                { id: 'jar', label: 'Motivation Jar', icon: LucideCoffee },
+                { id: 'open_when', label: 'When...', icon: LucideSparkles },
+                { id: 'surprise', label: 'Surprise Tab', icon: LucideGift },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => toggleLock(item.id)}
+                  className={`flex items-center justify-between px-6 py-3 rounded-2xl border transition-all ${
+                    appLocks[item.id] 
+                      ? 'bg-rose-500 text-white border-rose-600 shadow-md' 
+                      : 'bg-white/60 text-[var(--ink)] border-white/40 hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon size={14} className={appLocks[item.id] ? 'text-white' : 'text-rose-400'} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                  </div>
+                  <div className={`w-2 h-2 rounded-full ${appLocks[item.id] ? 'bg-white animate-pulse' : 'bg-green-400'}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <div className="text-center mb-16 relative">
         <motion.div
           animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
@@ -226,7 +285,7 @@ export default function Surprise({ isAdmin, sharedSettings }: SurpriseProps) {
                 controls
                 autoPlay
                 muted
-                src={getDirectVideoLink(data.videoUrl)}
+                src={getDirectDriveLink(data.videoUrl)}
               />
             ) : (
 

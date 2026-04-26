@@ -2,40 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, MailOpen, X, Plus, Trash2, Check, Pen, Lock, Unlock, RotateCcw } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { LoveLetter } from '../types';
 import { TARGET_DATE } from '../constants';
 
-interface LoveLettersProps {
+import { STATIC_LETTERS } from '../data/staticData';
 
+interface LoveLettersProps {
   isAdmin?: boolean;
+  onLockedClick?: () => void;
 }
 
-export default function LoveLetters({ isAdmin }: LoveLettersProps) {
-  const [letters, setLetters] = useState<LoveLetter[]>([]);
+export default function LoveLetters({ isAdmin, onLockedClick }: LoveLettersProps) {
+  const [letters, setLetters] = useState<LoveLetter[]>(STATIC_LETTERS);
   const [selectedLetter, setSelectedLetter] = useState<LoveLetter | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingLetter, setEditingLetter] = useState<LoveLetter | null>(null);
   const [newLetter, setNewLetter] = useState({ title: '', content: '', unlockDate: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
 
+  const [appLocks, setAppLocks] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
-    if (showAddModal || selectedLetter) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showAddModal, selectedLetter]);
+    // Using static letters to save Firebase quota
+    setLetters(STATIC_LETTERS);
+    
+    // Real-time settings listener for granular letter locks
+    const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) {
+        setAppLocks(doc.data().locks || {});
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const isTodayOrPast = (dateStr: string) => {
     if (!dateStr) return true;
     const today = new Date();
-    // Set to start of day for accurate comparison
     today.setHours(0, 0, 0, 0);
     const unlockDate = new Date(dateStr);
     unlockDate.setHours(0, 0, 0, 0);
@@ -43,28 +48,39 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
   };
 
   const handleOpenLetter = (letter: LoveLetter) => {
-    if (!isAdmin && letter.unlockDate && !isTodayOrPast(letter.unlockDate)) {
+    if (isAdmin) {
+      setSelectedLetter(letter);
       return;
     }
+
+    const isGlobalBirthday = new Date() >= new Date(TARGET_DATE);
+    if (isGlobalBirthday) {
+      setSelectedLetter(letter);
+      return;
+    }
+
+    const isAdvanceLetter = letter.title.toLowerCase().includes('advance');
+    const isBirthdayLetter = !isAdvanceLetter;
+    
+    // Check global admin overrides first
+    const manualLock = isAdvanceLetter ? appLocks['letters_advance'] : appLocks['letters_birthday'];
+    
+    // If admin explicitly set a lock status, use it. Otherwise, fallback to date logic.
+    const isLockedByAdmin = manualLock === true;
+    const isUnlockedByAdmin = manualLock === false;
+
+    const isLockedByDate = !isAdvanceLetter && letter.unlockDate && !isTodayOrPast(letter.unlockDate);
+
+    if (isLockedByAdmin || (isLockedByDate && !isUnlockedByAdmin)) {
+      onLockedClick?.();
+      return;
+    }
+    
     setSelectedLetter(letter);
   };
 
-  useEffect(() => {
-    fetchLetters();
-  }, []);
-
   const fetchLetters = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'letters'));
-      const fetchedLetters = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as LoveLetter[];
-      setLetters(fetchedLetters);
-    } catch (error) {
-      console.error(error);
-    }
-    setLoading(false);
+    return;
   };
 
   const handleAddLetter = async (e: React.FormEvent) => {
@@ -179,16 +195,22 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
 
       <div className="flex flex-wrap justify-center gap-10">
         {letters
-          .filter(l => (showTrash ? l.archived : !l.archived))
-          .filter(l => {
-            if (isAdmin) return true;
-            if (!l.unlockDate) return true;
-            return isTodayOrPast(l.unlockDate);
-          })
           .map((letter) => {
-
-            const isLocked = letter.unlockDate && !isTodayOrPast(letter.unlockDate);
+            const isAdvance = letter.title.toLowerCase().includes('advance');
+            const isBirthday = !isAdvance;
+            const isGlobalBirthday = new Date() >= new Date(TARGET_DATE);
             
+            const manualLock = isAdvance ? appLocks['letters_advance'] : appLocks['letters_birthday'];
+            
+            // Priority 1: Admin Overrides
+            // Priority 2: Default logic (Advance open, Birthday locked by date)
+            let isLocked = false;
+            if (!isAdmin && !isGlobalBirthday) {
+              if (manualLock === true) isLocked = true;
+              else if (manualLock === false) isLocked = false;
+              else if (isBirthday) isLocked = true; // Default for birthday
+            }
+
             return (
               <motion.div
                 key={letter.id}
@@ -261,8 +283,8 @@ export default function LoveLetters({ isAdmin }: LoveLettersProps) {
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-24 border-b border-[var(--rose-deep)]/10 bg-gradient-to-b from-pink-50/10 to-transparent rounded-t-xl" />
               </div>
             </motion.div>
-          );
-        })}
+            );
+          })}
       </div>
 
       <AnimatePresence>

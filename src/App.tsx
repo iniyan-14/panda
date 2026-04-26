@@ -29,20 +29,33 @@ import OpenWhen from './components/OpenWhen';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { SurpriseData } from './types';
-import { TARGET_DATE } from './constants';
+import { ADMIN_CODE, TARGET_DATE, START_DATE, PARTNER_CODE } from './constants';
 
 const BIRTHDAY_DATE = new Date(TARGET_DATE);
 
+
+import { STATIC_SURPRISE } from './data/staticData';
 
 function MainApp() {
   const { user, profile, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('countdown');
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [settings, setSettings] = useState<SurpriseData | null>(null);
+  const [settings] = useState<SurpriseData>(STATIC_SURPRISE);
   const [showWelcome, setShowWelcome] = useState(true);
   const [hasInteracted, setHasInteracted] = useState(false);
 
   const [showWaitModal, setShowWaitModal] = useState(false);
+   const [appSettings, setAppSettings] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) {
+        setAppSettings(doc.data().locks || {});
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -55,11 +68,13 @@ function MainApp() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (user && showWelcome && hasInteracted) {
-      const timer = setTimeout(() => setShowWelcome(false), 3000);
+    if (profile && showWelcome) {
+      const timer = setTimeout(() => {
+        setShowWelcome(false);
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [user, showWelcome, hasInteracted]);
+  }, [profile, showWelcome]);
 
   useEffect(() => {
     const checkUnlock = () => {
@@ -74,17 +89,13 @@ function MainApp() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'surprise'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data() as SurpriseData;
-        setSettings(data);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    // No Firestore listeners needed for Option B (Full Static)
+    // Countdown and Whispers are now managed via staticData.ts and constants.ts
+  }, [user]);
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.code === ADMIN_CODE || profile?.code === '1677' || profile?.code === '9585';
   const isPartner = profile?.role === 'partner';
+  const isUnlockedDate = isAdmin || (new Date() >= BIRTHDAY_DATE);
 
   const startExperience = () => {
     const audio = document.getElementById("bg-music") as HTMLAudioElement;
@@ -120,7 +131,7 @@ function MainApp() {
     );
   }
 
-  if (loading || (user && !profile)) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--ink)]">
         <motion.div
@@ -133,9 +144,9 @@ function MainApp() {
     );
   }
 
-  const audioEl = <AudioPlayer isUnlocked={isUnlocked} />;
+  const audioEl = <AudioPlayer isUnlocked={isUnlocked} settings={settings} />;
 
-  if (!user) {
+  if (!profile) {
     return (
       <>
         {audioEl}
@@ -175,15 +186,15 @@ function MainApp() {
     );
   }
 
+
   const tabs = [
     { id: 'countdown', label: 'Countdown', icon: LucideCalendar, locked: false },
     { id: 'daily', label: 'Daily Whisper', icon: LucideHeart, locked: false },
-    { id: 'open_when', label: 'When...', icon: LucideSparkles, locked: isPartner && !isUnlocked },
-    { id: 'gallery', label: 'Memories', icon: LucideImage, locked: isPartner && !isUnlocked },
+    { id: 'open_when', label: 'When...', icon: LucideSparkles, locked: !isAdmin && !isUnlocked && (appSettings['open_when'] ?? isPartner) },
+    { id: 'gallery', label: 'Memories', icon: LucideImage, locked: !isAdmin && !isUnlocked && (appSettings['gallery'] ?? isPartner) },
     { id: 'letters', label: 'Letters', icon: LucideMail, locked: false },
-
-    { id: 'jar', label: 'Motivation', icon: LucideCoffee, locked: isPartner && !isUnlocked },
-    { id: 'surprise', label: 'Surprise', icon: LucideGift, locked: isPartner && !isUnlocked },
+    { id: 'jar', label: 'Motivation', icon: LucideCoffee, locked: !isAdmin && !isUnlocked && (appSettings['jar'] ?? false) },
+    { id: 'surprise', label: 'Surprise', icon: LucideGift, locked: !isAdmin && !isUnlocked && (appSettings['surprise'] ?? isPartner) },
   ];
 
   return (
@@ -195,45 +206,69 @@ function MainApp() {
       <FloatingHearts />
       <HeartCursor />
       
-      {audioEl}
-      {!isAdmin && <ThinkingStatus isAdmin={false} />}
-
-      <AnimatePresence>
-        {showWaitModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xl bg-black/40">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white/90 backdrop-blur-2xl p-8 md:p-12 rounded-[3rem] shadow-2xl max-w-sm w-full text-center relative border border-white/50"
+      <header className="fixed top-0 left-0 right-0 z-[100] p-4 flex justify-between items-center pointer-events-none bg-gradient-to-b from-white/20 to-transparent">
+        <div className="pointer-events-auto">
+          {audioEl}
+        </div>
+        <div className="pointer-events-auto">
+          {profile && (
+            <button
+              onClick={() => {
+                if (window.confirm("Logout panna koodadhu da! Sry, logout panna poriya?")) {
+                  signOut();
+                  window.location.reload();
+                }
+              }}
+              className="w-10 h-10 rounded-full bg-white/40 backdrop-blur-xl border border-white/40 flex items-center justify-center text-[var(--rose-deep)] shadow-lg hover:bg-rose-500 hover:text-white transition-all"
+              title="Logout"
             >
-              <div className="w-20 h-20 bg-rose-50 rounded-3xl mx-auto mb-6 flex items-center justify-center text-rose-400">
-                <LucideLock size={40} />
-              </div>
-              <h3 className="text-2xl font-serif italic text-[var(--ink)] mb-4">Patience, My Love ❤️</h3>
-              <p className="text-gray-500 text-sm leading-relaxed mb-8">
-                This chapter unlocks on <span className="font-bold text-rose-400">May 10</span>. Some surprises are worth the wait.
-              </p>
-              <button
-                onClick={() => setShowWaitModal(false)}
-                className="w-full py-4 bg-[var(--ink)] text-white rounded-2xl font-bold tracking-widest uppercase text-xs hover:bg-rose-500 transition-colors"
-              >
-                I Will Wait ❤️
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              <LucideLogOut size={20} />
+            </button>
+          )}
+        </div>
+      </header>
 
-      <main className="container mx-auto px-4 md:px-6 max-w-4xl relative z-10">
+      <main className="container mx-auto px-4 md:px-6 max-w-4xl relative z-10 pt-20">
         <AnimatePresence mode="wait">
           {activeTab === 'countdown' && <Countdown birthdayDate={BIRTHDAY_DATE} isUnlocked={isUnlocked} />}
-          {activeTab === 'daily' && <GeminiGreeting partnerName={profile?.email || "My Love"} />}
+          {activeTab === 'daily' && <GeminiGreeting />}
           {activeTab === 'open_when' && <OpenWhen isAdmin={isAdmin} />}
           {activeTab === 'gallery' && <MemoryGallery isAdmin={isAdmin} />}
-          {activeTab === 'letters' && <LoveLetters isAdmin={isAdmin} />}
+          {activeTab === 'letters' && (
+            <LoveLetters 
+              isAdmin={isAdmin} 
+              onLockedClick={() => setShowWaitModal(true)} 
+            />
+          )}
           {activeTab === 'jar' && <JarOfHearts isAdmin={isAdmin} />}
-          {activeTab === 'surprise' && <Surprise isAdmin={isAdmin} sharedSettings={settings} />}
+          {activeTab === 'surprise' && <Surprise isAdmin={isAdmin} sharedSettings={STATIC_SURPRISE} />}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showWaitModal && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-xl bg-black/40">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white/90 backdrop-blur-2xl p-8 md:p-12 rounded-[3rem] shadow-2xl max-w-sm w-full text-center relative border border-white/50"
+              >
+                <div className="w-20 h-20 bg-rose-50 rounded-3xl mx-auto mb-6 flex items-center justify-center text-rose-400">
+                  <LucideHeart size={40} />
+                </div>
+                <h3 className="text-2xl font-serif italic text-[var(--ink)] mb-4">Patience, My Love ❤️</h3>
+                <p className="text-gray-500 text-sm leading-relaxed mb-8 italic font-serif">
+                  "may 10 varaium wiat pannu thangooo myluuuu 🤍🧿🤍🧿"
+                </p>
+                <button
+                  onClick={() => setShowWaitModal(false)}
+                  className="w-full py-4 bg-[var(--ink)] text-white rounded-2xl font-bold tracking-widest uppercase text-xs hover:bg-rose-500 transition-colors"
+                >
+                  I Will Wait 🤍
+                </button>
+              </motion.div>
+            </div>
+          )}
         </AnimatePresence>
       </main>
 
@@ -242,7 +277,7 @@ function MainApp() {
           <button
             key={tab.id}
             onClick={() => {
-              if (tab.locked) {
+              if (tab.locked && !isUnlocked) {
                 setShowWaitModal(true);
                 return;
               }
@@ -252,7 +287,7 @@ function MainApp() {
               activeTab === tab.id 
                 ? 'text-white' 
                 : 'text-gray-500 hover:text-gray-800'
-            } ${tab.locked ? 'opacity-40' : ''}`}
+            } ${(tab.locked && !isUnlocked) ? 'opacity-40' : ''}`}
           >
             <tab.icon size={18} />
             <span className="hidden md:inline font-bold text-[10px] uppercase tracking-[0.3em]">{tab.label}</span>
@@ -267,23 +302,6 @@ function MainApp() {
         ))}
       </nav>
 
-      <div className="fixed top-8 left-8 z-50 hidden md:flex items-center gap-4">
-        <div className="bg-white/60 backdrop-blur-2xl px-5 py-3 rounded-full border border-white/40 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-rose-400 flex items-center justify-center text-white font-bold text-lg">
-            {profile?.email?.[0]?.toUpperCase() || 'L'}
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-rose-400 font-black leading-none mb-1">My Heart</p>
-            <p className="text-xs font-bold text-gray-700">{profile?.email || 'Guest'}</p>
-          </div>
-        </div>
-        <button 
-          onClick={signOut}
-          className="w-12 h-12 rounded-full bg-white/60 backdrop-blur-2xl border border-white/40 flex items-center justify-center text-rose-400 hover:text-rose-600 transition-all shadow-sm"
-        >
-          <LucideLogOut size={20} />
-        </button>
-      </div>
     </div>
   );
 }
@@ -300,11 +318,28 @@ function LoginView() {
     
     setIsVerifying(true);
     setError('');
+    
+    const cleanCode = accessCode.trim().toLowerCase();
+    
+    // Custom Password Hack for Nandhu
+    if (cleanCode === 'june8') {
+      try {
+        localStorage.setItem('partner_access', 'true');
+        window.location.reload(); 
+        return;
+      } catch (err) {
+        setError('Something went wrong. Try again.');
+      } finally {
+        setIsVerifying(false);
+      }
+      return;
+    }
 
     try {
-      await signInWithCode(accessCode);
+      await signInWithCode(cleanCode);
     } catch (err: any) {
-      setError(err.message || "This world is not for you 🤍");
+      setError(err.message || 'Invalid access code');
+    } finally {
       setIsVerifying(false);
     }
   };

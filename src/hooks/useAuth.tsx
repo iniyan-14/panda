@@ -11,7 +11,7 @@ import {
   signInAnonymously
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -36,8 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      
+      const isPartnerOverride = localStorage.getItem('partner_access') === 'true';
+
       if (user) {
-        // Load profile from cache first to be resilient to quota issues
+        // Load profile from cache first
         const cachedProfile = localStorage.getItem(`user_profile_${user.uid}`);
         if (cachedProfile) {
           try { setProfile(JSON.parse(cachedProfile)); } catch (e) {}
@@ -48,17 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           userDoc = await getDoc(userDocRef);
         } catch (error) {
-          console.warn("Auth: Failed to get user profile (likely quota), using cache", error);
+          console.warn("Auth: Failed to get user profile, using cache", error);
           setLoading(false);
           return;
         }
         
-        // Dynamic role detection
-        // @ts-ignore
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-        // @ts-ignore
         const adminPhone = import.meta.env.VITE_ADMIN_PHONE;
-        // @ts-ignore
         const partnerPhone = import.meta.env.VITE_LIMIT_PHONE;
 
         let detectedRole: 'admin' | 'partner' | 'visitor' = 'visitor';
@@ -66,16 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           detectedRole = 'admin';
         } else if (user.phoneNumber === partnerPhone) {
           detectedRole = 'partner';
-        } else if (user.isAnonymous) {
-          // For anonymous users, we trust the role already stored in their document
-          // if it exists, otherwise it stays as detectedRole (visitor)
         }
 
         if (userDoc.exists()) {
           const currentProfile = userDoc.data() as UserProfile;
-          
-          // Only auto-update roles for non-anonymous users (email/phone verified)
-          // For anonymous users, we trust what was set during the signInWithCode call
           if (!user.isAnonymous && currentProfile.role !== detectedRole) {
             const updatedProfile = { ...currentProfile, role: detectedRole };
             await setDoc(userDocRef, updatedProfile, { merge: true });
@@ -86,8 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(currentProfile));
           }
         } else if (!user.isAnonymous) {
-          // Only create default profiles automatically for non-anonymous (email/Google) users
-          // Anonymous users have their profile created explicitly in signInWithCode
           const newProfile: UserProfile = {
             uid: user.uid,
             email: user.email,
@@ -97,11 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await setDoc(userDocRef, newProfile);
           setProfile(newProfile);
           localStorage.setItem(`user_profile_${user.uid}`, JSON.stringify(newProfile));
-        } else {
-          // user is anonymous and doc doesn't exist yet
-          // we wait for the signInWithCode function to complete its setDoc
-          setProfile(null);
         }
+      } else if (isPartnerOverride) {
+        // Local Override for 'june8'
+        setProfile({
+          uid: 'local-partner',
+          email: 'Nandhu ❤️',
+          phoneNumber: null,
+          role: 'partner'
+        });
       } else {
         setProfile(null);
       }
@@ -118,19 +113,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setupRecaptcha = (containerId: string) => {
     if (!recaptchaVerifier) {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        console.warn('Recaptcha container not found yet, will retry');
-        return;
-      }
-      try {
-        const verifier = new RecaptchaVerifier(auth, containerId, {
-          size: 'invisible'
-        });
-        setRecaptchaVerifier(verifier);
-      } catch (error) {
-        console.error('Failed to initialize recaptcha:', error);
-      }
+      const verifier = new RecaptchaVerifier(auth, containerId, {
+        size: 'invisible'
+      });
+      setRecaptchaVerifier(verifier);
     }
   };
 
@@ -143,7 +129,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { ADMIN_CODE, PARTNER_CODE } = await import('../constants');
     
     let role: 'admin' | 'partner' | null = null;
-
     if (code === ADMIN_CODE) {
       role = 'admin';
     } else if (code === PARTNER_CODE) {
@@ -154,10 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('This world is not for you 🤍');
     }
 
-    // Authenticate anonymously
     const { user: anonUser } = await signInAnonymously(auth);
-    
-    // Create/Update profile with the role
     const profileData: UserProfile = {
       uid: anonUser.uid,
       email: null,
@@ -170,9 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(`user_profile_${anonUser.uid}`, JSON.stringify(profileData));
   };
 
-
-
   const signOut = async () => {
+    localStorage.removeItem('partner_access');
     await firebaseSignOut(auth);
   };
 

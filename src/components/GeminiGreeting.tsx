@@ -1,26 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, Heart } from 'lucide-react';
-import { DAILY_WISHES, START_DATE } from '../constants';
+import { DAILY_WISHES } from '../constants';
+import { STATIC_DAILY_WHISPERS } from '../data/staticData';
 
-interface GeminiGreetingProps {
-  partnerName: string;
-}
-
-export default function GeminiGreeting({ partnerName }: GeminiGreetingProps) {
+export default function GeminiGreeting() {
   const [wish, setWish] = useState<string>("");
 
   useEffect(() => {
-    const startDate = new Date(START_DATE);
-    const today = new Date();
-    
-    const dayIndex = Math.floor(
-      (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Priority 1: Static Whispers based on today's date (YYYY-MM-DD)
+    const today = new Date().toISOString().split('T')[0];
+    if (STATIC_DAILY_WHISPERS[today]) {
+      setWish(STATIC_DAILY_WHISPERS[today]);
+      return;
+    }
 
-    // Get message based on day index, looping if we run out of messages
-    const message = DAILY_WISHES[Math.max(0, dayIndex) % DAILY_WISHES.length];
-    setWish(message);
+    // Priority 2: Fallback to a random wish from constants
+    const randomIndex = Math.floor(Math.random() * DAILY_WISHES.length);
+    setWish(DAILY_WISHES[randomIndex]);
   }, []);
 
   return (

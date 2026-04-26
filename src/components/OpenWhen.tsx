@@ -4,6 +4,9 @@ import { db } from '../firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { OpenWhenEnvelope } from '../types';
 import { Mail, Plus, X, Check, Heart, Sparkles, Trash2, ExternalLink } from 'lucide-react';
+import { getDirectDriveLink } from '../utils/driveUtils';
+
+import { STATIC_OPEN_WHEN } from '../data/staticData';
 
 interface OpenWhenProps {
   isAdmin?: boolean;
@@ -19,8 +22,8 @@ const CATEGORIES = [
 ];
 
 export default function OpenWhen({ isAdmin }: OpenWhenProps) {
-  const [envelopes, setEnvelopes] = useState<OpenWhenEnvelope[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [envelopes, setEnvelopes] = useState<OpenWhenEnvelope[]>(STATIC_OPEN_WHEN);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedEnvelope, setSelectedEnvelope] = useState<OpenWhenEnvelope | null>(null);
   
@@ -34,20 +37,12 @@ export default function OpenWhen({ isAdmin }: OpenWhenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchEnvelopes();
+    // Envelopes are now static to save Firebase quota
+    setEnvelopes(STATIC_OPEN_WHEN);
   }, []);
 
   const fetchEnvelopes = async () => {
-    try {
-      const q = query(collection(db, 'open_when_envelopes'));
-      const querySnapshot = await getDocs(q);
-      const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OpenWhenEnvelope[];
-      setEnvelopes(fetched);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    return;
   };
 
   const handleAddEnvelope = async (e: React.FormEvent) => {
@@ -256,11 +251,22 @@ export default function OpenWhen({ isAdmin }: OpenWhenProps) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="text-lg md:text-xl font-serif italic text-[var(--ink)]/80 leading-relaxed max-h-[40vh] overflow-y-auto pr-4 custom-scrollbar"
+                    className="text-lg md:text-xl font-serif italic text-[var(--ink)]/80 leading-relaxed max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar"
                   >
                     {selectedEnvelope.message.split('\n').map((line, i) => (
                       <p key={i} className={i > 0 ? 'mt-4' : ''}>{line}</p>
                     ))}
+
+                    {selectedEnvelope.type === 'image' && selectedEnvelope.contentUrl && (
+                      <div className="mt-8 rounded-2xl overflow-hidden shadow-lg border-4 border-white">
+                        <img 
+                          src={getDirectDriveLink(selectedEnvelope.contentUrl)} 
+                          alt="Surprise" 
+                          className="w-full h-auto object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    )}
                   </motion.div>
                 </div>
 

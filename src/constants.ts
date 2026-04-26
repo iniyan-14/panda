@@ -1,12 +1,6 @@
+import { Memory, LoveLetter, OpenWhenEnvelope, SurpriseData } from './types';
+
 export const DAILY_WISHES = [
-  "Every day with you is magic 💖",
-  "Counting days to hold you forever 💫",
-  "My heart beat only for you today and always ✨",
-  "You are my favorite thought 🌹",
-  "Forever isn't long enough with you 💍",
-  "You make the world a more beautiful place 🌎",
-  "Your smile is my favorite visual 📸",
-  "In your arms is where I belong 🏠",
   "You are the best thing that ever happened to me 🎁",
   "Loving you is as natural as breathing 🌬️",
   "Our love story is my favorite book 📖",
@@ -24,8 +18,7 @@ export const DAILY_WISHES = [
 ];
 
 
-export const ADMIN_CODE = "1677";
+export const ADMIN_CODE = "9585";
 export const PARTNER_CODE = "june8";
 export const TARGET_DATE = "2026-05-10T00:00:00";
 export const START_DATE = "2026-04-01";
-
