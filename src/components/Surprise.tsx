@@ -276,25 +276,22 @@ export default function Surprise({ isAdmin, sharedSettings }: SurpriseProps) {
         </div>
       </div>
 
-      <div className="w-full max-w-4xl aspect-video rounded-[3rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.3)] border-8 border-white/50 relative group mb-16 backdrop-blur-sm">
-        <div className="absolute inset-0 bg-[var(--ink)] flex items-center justify-center">
-            {data.videoUrl ? (
-              <video 
-                key={data.videoUrl}
-                className="w-full h-full object-cover"
-                controls
-                autoPlay
-                muted
-                src={getDirectDriveLink(data.videoUrl)}
-              />
-            ) : (
-
-              <div className="flex flex-col items-center gap-4 text-white/40">
-                <LucideVideo size={48} />
-                <p className="font-serif italic text-sm">Waiting for your magical video...</p>
-              </div>
-            )}
-        </div>
+      <div className="w-fit max-w-full mx-auto rounded-[3rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.3)] border-8 border-white/50 relative group mb-16 backdrop-blur-sm bg-[var(--ink)]">
+        {data.videoUrl ? (
+          <video 
+            key={data.videoUrl}
+            className="w-auto h-auto max-h-[75vh] max-w-full object-contain"
+            controls
+            autoPlay
+            muted
+            src={getDirectDriveLink(data.videoUrl, 'video')}
+          />
+        ) : (
+          <div className="py-32 flex flex-col items-center justify-center gap-4 text-white/40">
+            <LucideVideo size={48} />
+            <p className="font-serif italic text-sm">Waiting for your magical video...</p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 w-full max-w-4xl px-4">

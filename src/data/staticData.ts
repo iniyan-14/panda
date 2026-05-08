@@ -1396,7 +1396,7 @@ export const STATIC_JAR_MESSAGES: string[] = [
 
 export const STATIC_SURPRISE: SurpriseData = {
   heading: "Happy birthday my Nandhuu!",
-  videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-happy-birthday-background-with-balloons-and-confetti-3001-large.mp4",
+  videoUrl: "/surprise-video.mp4",
   promiseTitle: "My Promise to You",
   promiseText: "I promise to love you more each day, to support every dream you have, and to always be the hand you hold.",
   magicalTitle: "You are Magical",
