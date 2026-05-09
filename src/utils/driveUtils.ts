@@ -9,7 +9,7 @@ export const getDirectDriveLink = (url: string, type: 'image' | 'video' | 'audio
       if (type === 'video' || type === 'audio') {
         return `https://docs.google.com/uc?export=download&id=${id}`;
       }
-      return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`;
+      return `https://lh3.googleusercontent.com/d/${id}`;
     }
   }
   return url;
@@ -21,7 +21,7 @@ export const getDriveThumbnail = (url: string) => {
     const idMatch = url.match(/\/file\/d\/([^/\s?]+)/) || 
                     url.match(/id=([^&/\s]+)/) ||
                     url.match(/\/d\/([^/\s?]+)/);
-    if (idMatch) return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
+    if (idMatch) return `https://lh3.googleusercontent.com/d/${idMatch[1]}=w800`;
   }
   return url;
 };
